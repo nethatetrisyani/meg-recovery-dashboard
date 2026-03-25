@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <meta name="description" content="MEG Recovery Performance Dashboard - Kalkulator dan analisis performa recovery MEG dengan integrasi API spreadsheet">
+    <meta name="author" content="MEG Recovery Dashboard">
+    <title>MEG Recovery Dashboard | Performance Analyzer</title>
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- SheetJS (XLSX) untuk export Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <!-- Axios untuk API calls -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e9ecef 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        /* Header Styles */
+        .header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2c5f8a 100%);
+            border-radius: 20px;
+            padding: 24px 32px;
+            margin-bottom: 28px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .header h1 {
+            color: white;
+            font-size: 1.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .header h1::before {
+            content: "⚙️";
+            font-size: 2rem;
+        }
+        
+        .header-buttons {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        /* Button Styles */
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .btn-primary {
+            background: #ffc107;
+            color: #1e3a5f;
+        }
+        
+        .btn-primary:hover {
+            background: #ffb300;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255,193,7,0.3);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+        
+        .btn-info {
+            background: #17a2b8;
+            color: white;
+        }
+        
+        .btn-info:hover {
+            background: #138496;
+            transform: translateY(-2px);
+        }
+        
+        /* Card Styles */
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 28px;
+            margin-bottom: 28px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            transition: transform 0.2s;
+        }
+        
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+        }
+        
+        .card-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #1e3a5f;
+            margin-bottom: 24px;
+            padding-left: 16px;
+            border-left: 5px solid #ffc107;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        /* Input Grid */
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        
+        .input-field {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .input-field label {
+            font-weight: 600;
+            color: #495057;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .input-field input {
+            padding: 12px 16px;
+            border: 2px solid #dee2e6;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+        
+        .input-field input:focus {
+            border-color: #ffc107;
+            outline: none;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(255,193,7,0.1);
+        }
+        
+        /* Results Area */
+        .results-area {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 16px;
+            padding: 24px;
+            margin-top: 24px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            justify-content: space-around;
+        }
+        
+        .result-item {
+            flex: 1;
+            min-width: 200px;
+            text-align: center;
+            padding: 16px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .result-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #6c757d;
+            margin-bottom: 8px;
+        }
+        
+        .result-value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #1e3a5f;
+        }
+        
+        .result-unit {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        
+        /* Trend Container */
+        .trend-container {
+            margin-top: 20px;
+            position: relative;
+            height: 350px;
+        }
+        
+        canvas {
+            max-height: 350px;
+            width: 100%;
+        }
+        
+        /* Table Styles */
+        .table-wrapper {
+            overflow-x: auto;
+            margin-top: 20px;
+            border-radius: 12px;
+            border: 1px solid #dee2e6;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        
+        th {
+            background: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 2px solid #dee2e6;
+        }
+        
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        /* Status Message */
+        .status-msg {
+            padding: 12px 20px;
+            border-radius: 12px;
+            margin-top: 15px;
+            background: #e7f3ff;
+            color: #004085;
+            border-left: 4px solid #007bff;
+        }
+        
+        /* Button Group */
+        .button-group {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            body {
+                padding: 12px;
+            }
+            
+            .header {
+                padding: 20px;
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+            
+            .results-area {
+                flex-direction: column;
+            }
+            
+            .result-value {
+                font-size: 1.5rem;
+            }
+            
+            .btn {
+                padding: 8px 16px;
+                font-size: 0.85rem;
+            }
+        }
+        
+        /* Loading Animation */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .loading {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <div class="header">
+            <h1>MEG Recovery Performance Dashboard</h1>
+            <div class="header-buttons">
+                <button id="exportAllBtn" class="btn btn-success">📊 Export to Excel</button>
+                <button id="refreshTrendBtn" class="btn btn-info">🔄 Refresh Data</button>
+            </div>
+        </div>
+        
+        <!-- Input Form Card -->
+        <div class="card">
+            <div class="card-title">
+                <span>📝</span> Input Parameters & Record Data
+            </div>
+            <div class="input-grid" id="inputGrid">
+                <div class="input-field">
+                    <label>📅 Date (dd/mm/yy)</label>
+                    <input type="text" id="dateInput" placeholder="e.g., 25/03/26">
+                </div>
+                <div class="input-field">
+                    <label>🧪 Lean MEG Tank Level (LI507.AI.PV) %</label>
+                    <input type="number" id="leanTankLevel" step="any" placeholder="% level">
+                </div>
+                <div class="input-field">
+                    <label>💧 Rich MEG Flowrate (FI131.PV) m³/h</label>
+                    <input type="number" id="richFlow" step="any" placeholder="m³/h">
+                </div>
+                <div class="input-field">
+                    <label>📊 Rich MEG Concentration (%)</label>
+                    <input type="number" id="richConc" step="any" placeholder="%">
+                </div>
+                <div class="input-field">
+                    <label>⛽ Lean MEG Tank Pump Totalizer (m³)</label>
+                    <input type="number" id="leanTotalizer" step="any" placeholder="m³ total">
+                </div>
+                <div class="input-field">
+                    <label>⚖️ Lean MEG Specific Gravity</label>
+                    <input type="number" id="leanSG" step="any" placeholder="SG">
+                </div>
+                <div class="input-field">
+                    <label>🧴 Lean MEG Concentration (%)</label>
+                    <input type="number" id="leanConc" step="any" placeholder="%">
+                </div>
+                <div class="input-field">
+                    <label>🔄 Lean Pump Flow Rate (m³/h)</label>
+                    <input type="number" id="leanFlowRate" step="any" placeholder="m³/h">
+                </div>
+            </div>
+            <div class="button-group">
+                <button id="resetFormBtn" class="btn btn-secondary">⟳ Reset Form</button>
+                <button id="submitBtn" class="btn btn-primary">💾 Save & Calculate</button>
+            </div>
+            
+            <!-- Live Calculation Results -->
+            <div class="results-area">
+                <div class="result-item">
+                    <div class="result-label">📉 MEG Recovery Losses</div>
+                    <div class="result-value" id="lossValue">--</div>
+                    <div class="result-unit">kg/h</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-label">📈 Recovery Factor</div>
+                    <div class="result-value" id="factorValue">--</div>
+                    <div class="result-unit">%</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-label">💧 Lean MEG Tank Level</div>
+                    <div class="result-value" id="inventoryHint">--</div>
+                    <div class="result-unit">%</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Weekly Trend Card -->
+        <div class="card">
+            <div class="card-title">
+                <span>📈</span> Weekly Performance Trend (Last 7 Days)
+            </div>
+            <div class="trend-container">
+                <canvas id="trendChart"></canvas>
+            </div>
+            <div id="trendStatus" class="status-msg">
+                Loading weekly data from API...
+            </div>
+        </div>
+        
+        <!-- Recent Records Card -->
+        <div class="card">
+            <div class="card-title">
+                <span>📋</span> Recent Records from Database
+            </div>
+            <div class="table-wrapper">
+                <table id="previewTable">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Date</th>
+                            <th>Lean Level %</th>
+                            <th>Rich Flow</th>
+                            <th>Rich Conc%</th>
+                            <th>Lean Conc%</th>
+                            <th>Recovery Factor</th>
+                            <th>Losses</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="8" style="text-align: center;">Loading data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p>MEG Recovery Dashboard | Real-time Performance Monitoring | Data Synced with API Spreadsheet</p>
+        </div>
+    </div>
+    
+    <script>
+        // ==================== API CONFIGURATION ====================
+        const API_URL = "https://api.apispreadsheets.com/ai/DOh03Yr3XfAfG6Ri/";
+        const API_HEADERS = {
+            "accessKey": "3ddb89ce071bffe937be077cb7d1996d",
+            "secretKey": "01ab8b9e078b3e422af37d7c04f88aae",
+            "Content-Type": "application/json"
+        };
+        
+        // Set default values
+        function setDefaultValues() {
+            const today = new Date();
+            const day = String(today.getDate()).padStart(2, '0');
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const year = String(today.getFullYear()).slice(-2);
+            document.getElementById('dateInput').value = `${day}/${month}/${year}`;
+            document.getElementById('leanTankLevel').value = '78.5';
+            document.getElementById('richFlow').value = '125.3';
+            document.getElementById('richConc').value = '48.2';
+            document.getElementById('leanTotalizer').value = '3420';
+            document.getElementById('leanSG').value = '1.045';
+            document.getElementById('leanConc').value = '89.5';
+            document.getElementById('leanFlowRate').value = '105.0';
+        }
+        
+        // Fetch all records from API
+        async function fetchAllRecords() {
+            try {
+                const payload = { "prompt": "SELECT * FROM data ORDER BY timestamp DESC" };
+                const response = await axios.post(API_URL, payload, { headers: API_HEADERS, timeout: 30000 });
+                if (response.data && Array.isArray(response.data.data)) {
+                    return response.data.data;
+                } else if (response.data && response.data.data && typeof response.data.data === 'object') {
+                    return Object.values(response.data.data);
+                } else {
+                    return [];
+                }
+            } catch (error) {
+                console.error("API fetch error:", error);
+                return [];
+            }
+        }
+        
+        // Insert new record
+        async function appendRecord(recordObj) {
+            const columns = Object.keys(recordObj).join(", ");
+            const values = Object.values(recordObj).map(v => {
+                if (typeof v === 'string') return `'${v.replace(/'/g, "''")}'`;
+                return v;
+            }).join(", ");
+            const insertPrompt = `INSERT INTO data (${columns}) VALUES (${values})`;
+            try {
+                const response = await axios.post(API_URL, { prompt: insertPrompt }, { headers: API_HEADERS });
+                return response.status === 200 || response.status === 201;
+            } catch (err) {
+                console.error("Insert error:", err);
+                return false;
+            }
+        }
+        
+        // Calculate metrics
+        function calculateMetrics(richFlow, richConc, leanConc, leanSG, leanFlowRate) {
+            const richDensity = 1100;
+            const leanDensity = leanSG * 1000;
+            
+            const richMassFlow = richFlow * (richConc / 100) * richDensity;
+            const leanMassFlow = leanFlowRate * (leanConc / 100) * leanDensity;
+            
+            let recoveryFactor = 0;
+            if (richMassFlow > 0) recoveryFactor = (leanMassFlow / richMassFlow) * 100;
+            recoveryFactor = Math.min(100, Math.max(0, recoveryFactor));
+            
+            let recoveryLosses = richMassFlow - leanMassFlow;
+            recoveryLosses = Math.max(0, recoveryLosses);
+            
+            return { recoveryFactor: recoveryFactor.toFixed(2), recoveryLosses: recoveryLosses.toFixed(1) };
+        }
+        
+        // Update live results
+        function updateLiveResults() {
+            const richFlow = parseFloat(document.getElementById('richFlow').value) || 0;
+            const richConc = parseFloat(document.getElementById('richConc').value) || 0;
+            const leanConc = parseFloat(document.getElementById('leanConc').value) || 0;
+            const leanSG = parseFloat(document.getElementById('leanSG').value) || 1;
+            let leanFlow = parseFloat(document.getElementById('leanFlowRate').value);
+            if (isNaN(leanFlow) || leanFlow <= 0) leanFlow = richFlow * 0.85;
+            
+            const { recoveryFactor, recoveryLosses } = calculateMetrics(richFlow, richConc, leanConc, leanSG, leanFlow);
+            document.getElementById('lossValue').innerText = recoveryLosses;
+            document.getElementById('factorValue').innerText = `${recoveryFactor}%`;
+            const tankLevel = document.getElementById('leanTankLevel').value || '0';
+            document.getElementById('inventoryHint').innerHTML = tankLevel;
+            return { recoveryFactor: parseFloat(recoveryFactor), recoveryLosses: parseFloat(recoveryLosses) };
+        }
+        
+        // Save current record
+        async function saveCurrentRecord() {
+            const dateVal = document.getElementById('dateInput').value;
+            const leanLevel = parseFloat(document.getElementById('leanTankLevel').value);
+            const richFlow = parseFloat(document.getElementById('richFlow').value);
+            const richConc = parseFloat(document.getElementById('richConc').value);
+            const leanTotalizer = parseFloat(document.getElementById('leanTotalizer').value);
+            const leanSG = parseFloat(document.getElementById('leanSG').value);
+            const leanConc = parseFloat(document.getElementById('leanConc').value);
+            let leanFlowRate = parseFloat(document.getElementById('leanFlowRate').value);
+            if (isNaN(leanFlowRate)) leanFlowRate = richFlow * 0.85;
+            
+            const { recoveryFactor, recoveryLosses } = calculateMetrics(richFlow, richConc, leanConc, leanSG, leanFlowRate);
+            
+            const record = {
+                timestamp: new Date().toISOString(),
+                date_input: dateVal,
+                lean_tank_level_pct: leanLevel,
+                rich_flow_m3h: richFlow,
+                rich_concentration_pct: richConc,
+                lean_totalizer_m3: leanTotalizer,
+                lean_specific_gravity: leanSG,
+                lean_concentration_pct: leanConc,
+                lean_flow_m3h: leanFlowRate,
+                recovery_factor_pct: parseFloat(recoveryFactor),
+                recovery_losses_kgh: parseFloat(recoveryLosses)
+            };
+            
+            const success = await appendRecord(record);
+            if (success) {
+                alert("✅ Data saved successfully!");
+                await refreshDashboardData();
+            } else {
+                alert("⚠️ Failed to save data. Please check your connection.");
+            }
+            updateLiveResults();
+        }
+        
+        // Render weekly trend chart
+        let trendChartInstance = null;
+        async function renderWeeklyTrend() {
+            const records = await fetchAllRecords();
+            if (!records || records.length === 0) {
+                document.getElementById('trendStatus').innerHTML = "No data available. Please add some records first.";
+                return;
+            }
+            
+            const now = new Date();
+            const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const lastWeekRecords = records.filter(rec => {
+                let ts = rec.timestamp;
+                if (!ts) return false;
+                let dateObj = new Date(ts);
+                if (isNaN(dateObj)) return false;
+                return dateObj >= sevenDaysAgo;
+            }).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            
+            if (lastWeekRecords.length === 0) {
+                document.getElementById('trendStatus').innerHTML = "No records in the last 7 days. Submit new data to see trends.";
+                if (trendChartInstance) trendChartInstance.destroy();
+                return;
+            }
+            
+            document.getElementById('trendStatus').innerHTML = `📊 Showing ${lastWeekRecords.length} records from the last 7 days.`;
+            const labels = lastWeekRecords.map(r => {
+                let d = new Date(r.timestamp);
+                return d.toLocaleDateString();
+            });
+            const recoveryFactorVals = lastWeekRecords.map(r => parseFloat(r.recovery_factor_pct) || 0);
+            const lossesVals = lastWeekRecords.map(r => parseFloat(r.recovery_losses_kgh) || 0);
+            
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            if (trendChartInstance) trendChartInstance.destroy();
+            trendChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Recovery Factor (%)',
+                            data: recoveryFactorVals,
+                            borderColor: '#ffc107',
+                            backgroundColor: 'rgba(255,193,7,0.1)',
+                            tension: 0.3,
+                            fill: true,
+                            borderWidth: 3
+                        },
+                        {
+                            label: 'Recovery Losses (kg/h)',
+                            data: lossesVals,
+                            borderColor: '#dc3545',
+                            backgroundColor: 'rgba(220,53,69,0.05)',
+                            tension: 0.3,
+                            fill: true,
+                            borderWidth: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Recovery Factor (%)'
+                            }
+                        },
+                        y1: {
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Losses (kg/h)'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Update preview table
+        async function updatePreviewTable() {
+            const records = await fetchAllRecords();
+            const tbody = document.querySelector('#previewTable tbody');
+            if (!records || records.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">No records found. Start by adding data.</td></tr>';
+                return;
+            }
+            const latest = records.slice(0, 8);
+            tbody.innerHTML = latest.map(rec => `
+                <tr>
+                    <td>${rec.timestamp ? new Date(rec.timestamp).toLocaleString() : '-'}</td>
+                    <td>${rec.date_input || '-'}</td>
+                    <td>${rec.lean_tank_level_pct ?? '-'}</td>
+                    <td>${rec.rich_flow_m3h ?? '-'}</td>
+                    <td>${rec.rich_concentration_pct ?? '-'}</td>
+                    <td>${rec.lean_concentration_pct ?? '-'}</td>
+                    <td><strong>${rec.recovery_factor_pct ? rec.recovery_factor_pct + '%' : '-'}</strong></td>
+                    <td>${rec.recovery_losses_kgh ? rec.recovery_losses_kgh + ' kg/h' : '-'}</td>
+                </tr>
+            `).join('');
+        }
+        
+        // Export to Excel
+        async function exportAllToExcel() {
+            const records = await fetchAllRecords();
+            if (!records || records.length === 0) {
+                alert("No data to export.");
+                return;
+            }
+            
+            const exportData = records.map(r => ({
+                'Timestamp': r.timestamp ? new Date(r.timestamp).toLocaleString() : '',
+                'Date (dd/mm/yy)': r.date_input || '',
+                'Lean Tank Level %': r.lean_tank_level_pct,
+                'Rich Flow (m³/h)': r.rich_flow_m3h,
+                'Rich Conc %': r.rich_concentration_pct,
+                'Lean Totalizer (m³)': r.lean_totalizer_m3,
+                'Lean SG': r.lean_specific_gravity,
+                'Lean Conc %': r.lean_concentration_pct,
+                'Lean Flow (m³/h)': r.lean_flow_m3h,
+                'Recovery Factor (%)': r.recovery_factor_pct,
+                'Recovery Losses (kg/h)': r.recovery_losses_kgh
+            }));
+            
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'MEG_Recovery_Data');
+            const fileName = `MEG_Recovery_Export_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+            alert(`✅ Export successful! File: ${fileName}`);
+        }
+        
+        // Refresh all dashboard data
+        async function refreshDashboardData() {
+            await updatePreviewTable();
+            await renderWeeklyTrend();
+            updateLiveResults();
+        }
+        
+        // Reset form
+        function resetForm() {
+            setDefaultValues();
+            updateLiveResults();
+        }
+        
+        // Initialize event listeners
+        function initializeEventListeners() {
+            document.getElementById('submitBtn').addEventListener('click', saveCurrentRecord);
+            document.getElementById('resetFormBtn').addEventListener('click', resetForm);
+            document.getElementById('exportAllBtn').addEventListener('click', exportAllToExcel);
+            document.getElementById('refreshTrendBtn').addEventListener('click', refreshDashboardData);
+            
+            const inputs = ['richFlow', 'richConc', 'leanConc', 'leanSG', 'leanFlowRate', 'leanTankLevel'];
+            inputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('input', () => updateLiveResults());
+            });
+        }
+        
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            setDefaultValues();
+            initializeEventListeners();
+            updateLiveResults();
+            refreshDashboardData();
+        });
+    </script>
+</body>
+</html>
